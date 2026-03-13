@@ -1,0 +1,56 @@
+DELETE FROM zakazi;
+DELETE FROM tovari;
+DELETE FROM klienti;
+
+DECLARE @i INT = 1;
+WHILE @i <= 50
+BEGIN
+    INSERT INTO klienti (customer_id, subname, name, phone_number, city, Registrated_date)
+    VALUES (
+        'CUS' + CAST(@i AS VARCHAR),
+        CHOOSE(@i % 5 + 1, 'Иванов', 'Петров', 'Сидоров', 'Смирнов', 'Кузнецов') + '_' + CAST(@i AS VARCHAR),
+        CHOOSE(@i % 5 + 1, 'Иван', 'Петр', 'Алексей', 'Дмитрий', 'Сергей'),
+        '+7900' + RIGHT('0000000' + CAST(ABS(CHECKSUM(NEWID())) % 10000000 AS VARCHAR), 7),
+        CHOOSE(@i % 4 + 1, 'Москва', 'Санкт-Петербург', 'Казань', 'Екатеринбург'),
+        DATEADD(DAY, - (ABS(CHECKSUM(NEWID())) % 365), GETDATE())
+    );
+    SET @i = @i + 1;
+END;
+
+SET @i = 1;
+WHILE @i <= 20
+BEGIN
+    INSERT INTO tovari (product_id, name, Description, Price, Weight, created_at)
+    VALUES (
+        'PRC' + CAST(@i AS VARCHAR),
+        'Товар ' + CAST(@i AS VARCHAR),
+        'Описание товара ' + CAST(@i AS VARCHAR) + CHOOSE(@i % 3 + 1, '. Прекрасный продукт, 150 г.', '. Упаковка 1 кг.', '. Без указания веса.'),
+        (ABS(CHECKSUM(NEWID())) % 1000) + 100,
+        NULL,
+        DATEADD(DAY, - (ABS(CHECKSUM(NEWID())) % 100), GETDATE())
+    );
+    SET @i = @i + 1;
+END;
+
+
+SET @i = 1;
+WHILE @i <= 100
+BEGIN
+    DECLARE @qty INT = (ABS(CHECKSUM(NEWID())) % 5) + 1;
+    DECLARE @random_product_id VARCHAR(50) = 'PRC' + CAST((ABS(CHECKSUM(NEWID())) % 20) + 1 AS VARCHAR);
+    DECLARE @price DECIMAL(10,2) = (SELECT Price FROM tovari WHERE product_id = @random_product_id);
+
+    INSERT INTO zakazi (order_id, customer_id, product_id, quantity, order_dt, amount, status, created_at, updated_at)
+    VALUES (
+        'ORD' + CAST(@i AS VARCHAR),
+        'CUS' + CAST((ABS(CHECKSUM(NEWID())) % 50) + 1 AS VARCHAR),
+        @random_product_id,
+        @qty,
+        DATEADD(DAY, - (ABS(CHECKSUM(NEWID())) % 30), GETDATE()),
+        @qty * ISNULL(@price, 100),
+        CHOOSE(@i % 3 + 1, 'NEW', 'PAID', 'DELIVERED'),
+        GETDATE(),
+        GETDATE()
+    );
+    SET @i = @i + 1;
+END;
