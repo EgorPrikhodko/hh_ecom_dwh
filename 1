@@ -1,0 +1,63 @@
+CREATE TABLE klienti (
+    customer_id VARCHAR(50) PRIMARY KEY,
+    subname NVARCHAR(100),
+    name NVARCHAR(100),
+    phone_number VARCHAR(20),
+    city NVARCHAR(100),
+    Registrated_date DATE
+);
+
+CREATE TABLE tovari (
+    product_id VARCHAR(50) PRIMARY KEY,
+    name NVARCHAR(255),
+    Description NVARCHAR(MAX),
+    Price DECIMAL(10,2),
+    Weight VARCHAR(50),
+    created_at DATETIME
+);
+
+CREATE TABLE zakazi (
+    order_id VARCHAR(50) PRIMARY KEY,
+    customer_id VARCHAR(50),
+    product_id VARCHAR(50),
+    quantity INT,
+    order_dt DATE,
+    amount DECIMAL(10,2),
+    status VARCHAR(20),
+    created_at DATETIME,
+    updated_at DATETIME
+);
+
+CREATE TABLE customer (
+    dwh_customer_id INT IDENTITY(1,1) PRIMARY KEY,
+    customer_id VARCHAR(50) UNIQUE,
+    subname NVARCHAR(100),
+    name NVARCHAR(100),
+    phone_number VARCHAR(20),
+    city NVARCHAR(100),
+    Registrated_date DATE
+);
+
+CREATE TABLE products (
+    dwh_product_id INT IDENTITY(1,1) PRIMARY KEY,
+    product_id VARCHAR(50) UNIQUE,
+    name NVARCHAR(255),
+    Description NVARCHAR(MAX),
+    price DECIMAL(10,2),
+    weight VARCHAR(50),
+    created_at DATETIME,
+    is_deleted BIT DEFAULT 0
+);
+
+CREATE TABLE orders (
+    dwh_order_id INT IDENTITY(1,1) PRIMARY KEY,
+    order_id VARCHAR(50) UNIQUE,
+    dwh_customer_id INT FOREIGN KEY REFERENCES customer(dwh_customer_id),
+    dwh_product_id INT FOREIGN KEY REFERENCES products(dwh_product_id),
+    quantity INT,
+    order_dt DATE,
+    amount DECIMAL(10,2),
+    status VARCHAR(20),
+    created_at DATETIME,
+    updated_at DATETIME
+);
