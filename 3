@@ -1,0 +1,115 @@
+CREATE PROCEDURE sp_Load_Customer
+AS
+BEGIN
+    MERGE customer AS target
+    USING klienti AS source
+    ON target.customer_id = source.customer_id
+    WHEN MATCHED THEN
+        UPDATE SET
+            subname = source.subname,
+            name = source.name,
+            phone_number = source.phone_number,
+            city = source.city,
+            Registrated_date = source.Registrated_date
+    WHEN NOT MATCHED BY TARGET THEN
+        INSERT (customer_id, subname, name, phone_number, city, Registrated_date)
+        VALUES (source.customer_id, source.subname, source.name, source.phone_number, source.city, source.Registrated_date);
+END;
+GO
+
+CREATE PROCEDURE sp_Load_Products
+AS
+BEGIN
+    MERGE products AS target
+    USING (
+        SELECT
+            product_id, name, Description, Price, created_at,
+            CASE
+                WHEN Description LIKE '%[0-9]% г.%' OR Description LIKE '%[0-9]% кг.%'
+                THEN SUBSTRING(
+                        Description,
+                        PATINDEX('%[0-9]%', Description),
+                        CHARINDEX('.', Description, PATINDEX('%[0-9]%', Description)) - PATINDEX('%[0-9]%', Description) + 1
+                     )
+                ELSE NULL
+            END AS extracted_weight
+        FROM tovari
+    ) AS source
+    ON target.product_id = source.product_id
+    WHEN MATCHED THEN
+        UPDATE SET
+            name = source.name,
+            Description = source.Description,
+            price = source.Price,
+            weight = source.extracted_weight,
+            is_deleted = 0
+    WHEN NOT MATCHED BY TARGET THEN
+        INSERT (product_id, name, Description, price, weight, created_at)
+        VALUES (source.product_id, source.name, source.Description, source.Price, source.extracted_weight, source.created_at)
+    WHEN NOT MATCHED BY SOURCE THEN
+        UPDATE SET is_deleted = 1;
+END;
+GO
+
+CREATE PROCEDURE sp_Load_Orders
+AS
+BEGIN
+    MERGE orders AS target
+    USING (
+        SELECT
+            z.order_id, c.dwh_customer_id, p.dwh_product_id,
+            z.quantity, z.order_dt, z.amount, z.status, z.created_at, z.updated_at
+        FROM zakazi z
+        JOIN customer c ON z.customer_id = c.customer_id
+        JOIN products p ON z.product_id = p.product_id
+    ) AS source
+    ON target.order_id = source.order_id
+    WHEN MATCHED AND (target.updated_at < source.updated_at OR target.status <> source.status) THEN
+        UPDATE SET
+            quantity = source.quantity,
+            amount = source.amount,
+            status = source.status,
+            updated_at = source.updated_at
+    WHEN NOT MATCHED BY TARGET THEN
+        INSERT (order_id, dwh_customer_id, dwh_product_id, quantity, order_dt, amount, status, created_at, updated_at)
+        VALUES (source.order_id, source.dwh_customer_id, source.dwh_product_id, source.quantity, source.order_dt, source.amount, source.status, source.created_at, source.updated_at);
+END;
+GO
+
+CREATE TABLE mart_top_products_by_city (
+    city NVARCHAR(100),
+    product_name NVARCHAR(255),
+    total_quantity INT,
+    total_amount DECIMAL(15,2),
+    rank_in_city INT
+);
+GO
+
+CREATE PROCEDURE sp_Build_Mart_TopProducts
+AS
+BEGIN
+    TRUNCATE TABLE mart_top_products_by_city;
+
+    WITH SalesAgg AS (
+        SELECT
+            c.city,
+            p.name AS product_name,
+            SUM(o.quantity) AS total_quantity,
+            SUM(o.amount) AS total_amount
+        FROM orders o
+        JOIN customer c ON o.dwh_customer_id = c.dwh_customer_id
+        JOIN products p ON o.dwh_product_id = p.dwh_product_id
+        GROUP BY c.city, p.name
+    ),
+    RankedSales AS (
+        SELECT
+            city, product_name, total_quantity, total_amount,
+            ROW_NUMBER() OVER(PARTITION BY city ORDER BY total_quantity DESC) AS rn
+        FROM SalesAgg
+    )
+    INSERT INTO mart_top_products_by_city (city, product_name, total_quantity, total_amount, rank_in_city)
+    SELECT city, product_name, total_quantity, total_amount, rn
+    FROM RankedSales
+    WHERE rn <= 5;
+END;
+GO
